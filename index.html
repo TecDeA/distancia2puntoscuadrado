@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Distancia Promedio en un Cuadrado</title>
+    
+    <!-- PWA Meta Tags & Manifest -->
+    <link rel="manifest" href="/dospuntos/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Distancia Cuadrado">
+
+    <!-- Favicon (Inline SVG Data URI) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'><path d='M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z'/></svg>">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+    <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center">
+                    <i class="fa-solid fa-square-root-variable text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white">Geometría Estocástica</h1>
+                    <p class="text-xs text-slate-400">Simulación Monte Carlo de Distancia en Cuadrado Unitario</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- Dynamic Version Chip (loaded from SW) -->
+                <span id="versionChip" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300 border border-slate-600">
+                    <i class="fa-solid fa-code-branch mr-1.5"></i> v...
+                </span>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">
+                    <i class="fa-solid fa-atom mr-1.5 animate-pulse"></i> Valor Teórico: ~0.5214
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Panel: Controls and Stats (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Control Card -->
+            <div class="bg-slate-800/90 backdrop-blur border border-slate-700/80 rounded-2xl p-6 shadow-xl">
+                <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i> Panel de Control
+                </h2>
+
+                <!-- Slider for number of pairs -->
+                <div class="space-y-3 mb-6">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="sliderPairs" class="font-medium text-slate-300">Pares de puntos ($N$):</label>
+                        <span id="valPairs" class="font-bold text-indigo-400 bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-800/60">5,000</span>
+                    </div>
+                    <input id="sliderPairs" type="range" min="100" max="50000" step="100" value="5000" 
+                           class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    <div class="flex justify-between text-xs text-slate-500">
+                        <span>100</span>
+                        <span>25,000</span>
+                        <span>50,000</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="btnPlay" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition-all duration-200 flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fa-solid fa-play"></i> Simular
+                    </button>
+                    <button id="btnReset" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 border border-slate-600">
+                        <i class="fa-solid fa-rotate-right"></i> Reiniciar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Statistics Card -->
+            <div class="bg-slate-800/90 backdrop-blur border border-slate-700/80 rounded-2xl p-6 shadow-xl flex-grow flex flex-col justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-violet-400"></i> Resultados en Tiempo Real
+                    </h2>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60">
+                            <p class="text-xs text-slate-400 mb-1">Distancia Promedio</p>
+                            <p id="statAvg" class="text-2xl font-bold text-indigo-400">0.0000</p>
+                        </div>
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60">
+                            <p class="text-xs text-slate-400 mb-1">Valor Teórico</p>
+                            <p class="text-2xl font-bold text-emerald-400">0.5214</p>
+                        </div>
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60">
+                            <p class="text-xs text-slate-400 mb-1">Pares Procesados</p>
+                            <p id="statTotal" class="text-xl font-semibold text-slate-200">0</p>
+                        </div>
+                        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60">
+                            <p class="text-xs text-slate-400 mb-1">Error Relativo</p>
+                            <p id="statError" class="text-xl font-semibold text-amber-400">0.00%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Explanation Box -->
+                <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-xl p-4 text-xs text-indigo-200 leading-relaxed">
+                    <p class="font-semibold mb-1 flex items-center gap-1.5 text-indigo-300">
+                        <i class="fa-solid fa-circle-info"></i> ¿Qué estamos calculando?
+                    </p>
+                    Elegimos dos puntos uniformemente al azar $(x_1, y_1)$ y $(x_2, y_2)$ en un cuadrado de lado $1 \times 1$. La distancia euclidiana promedio converge analíticamente a <code class="bg-indigo-900/80 px-1 py-0.5 rounded text-indigo-100 font-mono">(2 + √2 + 5 ln(1 + √2)) / 15 ≈ 0.521405</code>.
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Panel: Visualizations (7 cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- Canvas Simulation Card -->
+            <div class="bg-slate-800/90 backdrop-blur border border-slate-700/80 rounded-2xl p-6 shadow-xl flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-draw-polygon text-indigo-400"></i> Visualizador del Cuadrado $[0,1]^2$
+                    </h2>
+                    <span id="statusIndicator" class="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-slate-300">
+                        Listo
+                    </span>
+                </div>
+
+                <!-- Responsive Canvas Container -->
+                <div class="relative w-full aspect-square max-w-[450px] bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+                    <canvas id="simCanvas" class="w-full h-full block"></canvas>
+                </div>
+                <p class="text-xs text-slate-400 mt-3 text-center">
+                    Se muestran hasta 150 segmentos de muestra simultáneos por motivos de rendimiento visual.
+                </p>
+            </div>
+
+            <!-- Convergence Graph Card -->
+            <div class="bg-slate-800/90 backdrop-blur border border-slate-700/80 rounded-2xl p-6 shadow-xl">
+                <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-indigo-400"></i> Gráfica de Convergencia
+                </h2>
+                <div class="relative w-full h-36 bg-slate-900 rounded-xl overflow-hidden border border-slate-700 p-2">
+                    <canvas id="convCanvas" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // DOM Elements
+        const sliderPairs = document.getElementById('sliderPairs');
+        const valPairs = document.getElementById('valPairs');
+        const btnPlay = document.getElementById('btnPlay');
+        const btnReset = document.getElementById('btnReset');
+        const statAvg = document.getElementById('statAvg');
+        const statTotal = document.getElementById('statTotal');
+        const statError = document.getElementById('statError');
+        const statusIndicator = document.getElementById('statusIndicator');
+        
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const convCanvas = document.getElementById('convCanvas');
+        const convCtx = convCanvas.getContext('2d');
+
+        // Theoretical exact value
+        const THEORETICAL_VAL = (2 + Math.sqrt(2) + 5 * Math.log(1 + Math.sqrt(2))) / 15; // ~0.521405433
+
+        // Simulation state
+        let totalPairsSimulated = 0;
+        let cumulativeDistance = 0;
+        let isRunning = false;
+        let sampleSegments = []; 
+        let convergenceHistory = []; 
+
+        // Setup canvas resolutions for retina displays
+        function setupCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            
+            const rect1 = simCanvas.getBoundingClientRect();
+            simCanvas.width = rect1.width * dpr;
+            simCanvas.height = rect1.height * dpr;
+            simCtx.scale(dpr, dpr);
+
+            const rect2 = convCanvas.getBoundingClientRect();
+            convCanvas.width = rect2.width * dpr;
+            convCanvas.height = rect2.height * dpr;
+            convCtx.scale(dpr, dpr);
+
+            drawSimulation();
+            drawConvergence();
+        }
+
+        window.addEventListener('resize', setupCanvases);
+
+        // Update slider label
+        sliderPairs.addEventListener('input', (e) => {
+            valPairs.textContent = Number(e.target.value).toLocaleString();
+        });
+
+        // Reset Simulation
+        function resetSimulation() {
+            isRunning = false;
+            totalPairsSimulated = 0;
+            cumulativeDistance = 0;
+            sampleSegments = [];
+            convergenceHistory = [];
+            
+            statAvg.textContent = "0.0000";
+            statTotal.textContent = "0";
+            statError.textContent = "0.00%";
+            statusIndicator.textContent = "Reiniciado";
+            statusIndicator.className = "text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-slate-300";
+            
+            btnPlay.disabled = false;
+            btnPlay.innerHTML = '<i class="fa-solid fa-play"></i> Simular';
+            
+            drawSimulation();
+            drawConvergence();
+        }
+
+        btnReset.addEventListener('click', resetSimulation);
+
+        // Draw Unit Square & Segments
+        function drawSimulation() {
+            const width = simCanvas.clientWidth;
+            const height = simCanvas.clientHeight;
+            
+            simCtx.clearRect(0, 0, width, height);
+
+            simCtx.fillStyle = '#0f172a';
+            simCtx.fillRect(0, 0, width, height);
+
+            const padding = 40;
+            const squareSize = Math.min(width, height) - (padding * 2);
+            const startX = (width - squareSize) / 2;
+            const startY = (height - squareSize) / 2;
+
+            simCtx.strokeStyle = '#6366f1';
+            simCtx.lineWidth = 2;
+            simCtx.strokeRect(startX, startY, squareSize, squareSize);
+
+            simCtx.strokeStyle = '#1e293b';
+            simCtx.lineWidth = 1;
+            simCtx.strokeRect(startX, startY, squareSize, squareSize);
+
+            sampleSegments.forEach((seg, index) => {
+                const px1 = startX + seg.x1 * squareSize;
+                const py1 = startY + (1 - seg.y1) * squareSize; 
+                const px2 = startX + seg.x2 * squareSize;
+                const py2 = startY + (1 - seg.y2) * squareSize;
+
+                simCtx.strokeStyle = 'rgba(99, 102, 241, 0.35)';
+                simCtx.lineWidth = 1.5;
+                simCtx.beginPath();
+                simCtx.moveTo(px1, py1);
+                simCtx.lineTo(px2, py2);
+                simCtx.stroke();
+
+                simCtx.fillStyle = '#38bdf8';
+                simCtx.beginPath();
+                simCtx.arc(px1, py1, 3, 0, Math.PI * 2);
+                simCtx.arc(px2, py2, 3, 0, Math.PI * 2);
+                simCtx.fill();
+            });
+
+            simCtx.fillStyle = '#94a3b8';
+            simCtx.font = '11px Inter, sans-serif';
+            simCtx.fillText('(0,1)', startX - 30, startY - 5);
+            simCtx.fillText('(1,1)', startX + squareSize - 10, startY - 5);
+            simCtx.fillText('(0,0)', startX - 30, startY + squareSize + 15);
+            simCtx.fillText('(1,0)', startX + squareSize - 10, startY + squareSize + 15);
+        }
+
+        // Draw Convergence Chart
+        function drawConvergence() {
+            const width = convCanvas.clientWidth;
+            const height = convCanvas.clientHeight;
+
+            convCtx.clearRect(0, 0, width, height);
+
+            convCtx.fillStyle = '#0f172a';
+            convCtx.fillRect(0, 0, width, height);
+
+            if (convergenceHistory.length < 2) {
+                convCtx.fillStyle = '#64748b';
+                convCtx.font = '12px Inter, sans-serif';
+                convCtx.textAlign = 'center';
+                convCtx.fillText('Inicia la simulación para ver la convergencia', width / 2, height / 2);
+                return;
+            }
+
+            const paddingLeft = 40;
+            const paddingRight = 20;
+            const paddingTop = 15;
+            const paddingBottom = 25;
+            const chartW = width - paddingLeft - paddingRight;
+            const chartH = height - paddingTop - paddingBottom;
+
+            const yMin = 0.45;
+            const yMax = 0.60;
+
+            const mapY = (val) => paddingTop + chartH - ((val - yMin) / (yMax - yMin)) * chartH;
+            const mapX = (index) => paddingLeft + (index / (convergenceHistory.length - 1)) * chartW;
+
+            const theoY = mapY(THEORETICAL_VAL);
+            convCtx.strokeStyle = '#10b981';
+            convCtx.lineWidth = 1.5;
+            convCtx.setLineDash([4, 4]);
+            convCtx.beginPath();
+            convCtx.moveTo(paddingLeft, theoY);
+            convCtx.lineTo(width - paddingRight, theoY);
+            convCtx.stroke();
+            convCtx.setLineDash([]); 
+
+            convCtx.fillStyle = '#10b981';
+            convCtx.font = '10px Inter, sans-serif';
+            convCtx.textAlign = 'right';
+            convCtx.fillText('Teórico (0.5214)', width - paddingRight, theoY - 4);
+
+            convCtx.strokeStyle = '#6366f1';
+            convCtx.lineWidth = 2;
+            convCtx.beginPath();
+            convergenceHistory.forEach((val, idx) => {
+                const x = mapX(idx);
+                const y = mapY(val);
+                if (idx === 0) convCtx.moveTo(x, y);
+                else convCtx.lineTo(x, y);
+            });
+            convCtx.stroke();
+
+            convCtx.fillStyle = '#64748b';
+            convCtx.font = '9px Inter, sans-serif';
+            convCtx.textAlign = 'right';
+            convCtx.fillText('0.60', paddingLeft - 5, paddingTop + 5);
+            convCtx.fillText('0.52', paddingLeft - 5, theoY + 3);
+            convCtx.fillText('0.45', paddingLeft - 5, paddingTop + chartH + 3);
+        }
+
+        // Run Simulation Batch
+        function startSimulation() {
+            if (isRunning) return;
+            
+            const targetPairs = parseInt(sliderPairs.value);
+            if (totalPairsSimulated >= targetPairs) {
+                resetSimulation();
+            }
+
+            isRunning = true;
+            btnPlay.disabled = true;
+            btnPlay.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Simulando...';
+            statusIndicator.textContent = "Simulando en curso...";
+            statusIndicator.className = "text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-900 text-indigo-300 border border-indigo-700 animate-pulse";
+
+            const batchSize = Math.max(50, Math.floor(targetPairs / 40));
+
+            function runBatch() {
+                if (!isRunning) return;
+
+                let currentBatchProcessed = 0;
+                
+                while (currentBatchProcessed < batchSize && totalPairsSimulated < targetPairs) {
+                    const x1 = Math.random();
+                    const y1 = Math.random();
+                    const x2 = Math.random();
+                    const y2 = Math.random();
+
+                    const dist = Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+                    
+                    cumulativeDistance += dist;
+                    totalPairsSimulated++;
+
+                    if (sampleSegments.length > 120) {
+                        sampleSegments.shift();
+                    }
+                    sampleSegments.push({ x1, y1, x2, y2, d: dist });
+
+                    currentBatchProcessed++;
+                }
+
+                const currentAvg = cumulativeDistance / totalPairsSimulated;
+                statAvg.textContent = currentAvg.toFixed(4);
+                statTotal.textContent = totalPairsSimulated.toLocaleString();
+                
+                const error = Math.abs((currentAvg - THEORETICAL_VAL) / THEORETICAL_VAL) * 100;
+                statError.textContent = error.toFixed(2) + '%';
+
+                if (totalPairsSimulated % Math.max(1, Math.floor(targetPairs / 50)) === 0 || totalPairsSimulated === targetPairs) {
+                    convergenceHistory.push(currentAvg);
+                }
+
+                drawSimulation();
+                drawConvergence();
+
+                if (totalPairsSimulated < targetPairs && isRunning) {
+                    requestAnimationFrame(runBatch);
+                } else {
+                    isRunning = false;
+                    btnPlay.disabled = false;
+                    btnPlay.innerHTML = '<i class="fa-solid fa-play"></i> Simular';
+                    statusIndicator.textContent = "Simulación completada";
+                    statusIndicator.className = "text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-900/80 text-emerald-300 border border-emerald-700";
+                }
+            }
+
+            requestAnimationFrame(runBatch);
+        }
+
+        btnPlay.addEventListener('click', startSimulation);
+
+        // Service Worker Registration & Version Query
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/dospuntos/sw.js', { scope: '/dospuntos/' })
+                .then(reg => {
+                    console.log('ServiceWorker registered with scope:', reg.scope);
+                    
+                    const requestVersion = (worker) => {
+                        const channel = new MessageChannel();
+                        channel.port1.onmessage = (event) => {
+                            if (event.data && event.data.version) {
+                                const versionChip = document.getElementById('versionChip');
+                                if (versionChip) {
+                                    versionChip.innerHTML = `<i class="fa-solid fa-code-branch mr-1.5"></i> v${event.data.version}`;
+                                }
+                            }
+                        };
+                        worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+                    };
+
+                    if (navigator.serviceWorker.controller) {
+                        requestVersion(navigator.serviceWorker.controller);
+                    }
+
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (navigator.serviceWorker.controller) {
+                            requestVersion(navigator.serviceWorker.controller);
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.log('ServiceWorker registration failed:', err);
+                });
+            });
+        }
+
+        // Initial render on load
+        window.onload = function() {
+            setupCanvases();
+        };
+    </script>
+</body>
+</html>
