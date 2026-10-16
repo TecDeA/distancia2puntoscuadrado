@@ -4,7 +4,7 @@
 //  a la interfaz mediante mensajes { type: 'GET_VERSION' }.
 // ============================================================
 
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.5';
 const CACHE_NAME = `dospuntos-cache-v${APP_VERSION}`;
 
 // CDNs permitidos para caché en tiempo de ejecución (incluye MathJax)
@@ -20,6 +20,17 @@ const CDN_ORIGINS = [
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './manifest.json',
+    './img/favicon.svg',
+    './img/favicon-48x48.png',
+    './img/favicon-32x32.png',
+    './img/favicon-16x16.png',
+    './img/favicon.ico',
+    './img/apple-touch-icon.png',
+    './img/icon-192.png',
+    './img/icon-512.png',
+    './img/icon-maskable-192.png',
+    './img/icon-maskable-512.png',
     'https://cdn.tailwindcss.com',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
