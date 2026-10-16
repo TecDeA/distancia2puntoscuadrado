@@ -6,7 +6,7 @@
     <title>Simulador de Distancia Promedio en un Cuadrado</title>
     
     <!-- PWA Meta Tags & Manifest -->
-    <link rel="manifest" href="/dospuntos/manifest.json">
+    <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,12 +21,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- MathJax 3: renderizado de las expresiones LaTeX ($...$, $$...$$) -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
         canvas {
             touch-action: none;
+        }
+        /* Margen compacto para fórmulas en modo bloque */
+        mjx-container[display="true"] {
+            margin: 0.5em 0 !important;
+        }
+        /* Animación del chip al recibir la versión del Service Worker */
+        #versionChip.version-loaded {
+            animation: chip-pop 0.45s ease;
+        }
+        @keyframes chip-pop {
+            0%   { transform: scale(0.9);  opacity: 0.4; }
+            60%  { transform: scale(1.08); opacity: 1;   }
+            100% { transform: scale(1); }
         }
     </style>
 </head>
@@ -39,15 +65,17 @@
                     <i class="fa-solid fa-square-root-variable text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">Geometría Estocástica</h1>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <h1 class="text-xl font-bold tracking-tight text-white">Geometría Estocástica</h1>
+                        <!-- Chip dinámico de versión (cargado desde el Service Worker) -->
+                        <span id="versionChip" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-400/30 animate-pulse" title="Consultando versión al Service Worker...">
+                            <i class="fa-solid fa-code-branch mr-1.5"></i> v...
+                        </span>
+                    </div>
                     <p class="text-xs text-slate-400">Simulación Monte Carlo de Distancia en Cuadrado Unitario</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <!-- Dynamic Version Chip (loaded from SW) -->
-                <span id="versionChip" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300 border border-slate-600">
-                    <i class="fa-solid fa-code-branch mr-1.5"></i> v...
-                </span>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">
                     <i class="fa-solid fa-atom mr-1.5 animate-pulse"></i> Valor Teórico: ~0.5214
                 </span>
@@ -121,10 +149,15 @@
 
                 <!-- Explanation Box -->
                 <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-xl p-4 text-xs text-indigo-200 leading-relaxed">
-                    <p class="font-semibold mb-1 flex items-center gap-1.5 text-indigo-300">
+                    <p class="font-semibold mb-1.5 flex items-center gap-1.5 text-indigo-300">
                         <i class="fa-solid fa-circle-info"></i> ¿Qué estamos calculando?
                     </p>
-                    Elegimos dos puntos uniformemente al azar $(x_1, y_1)$ y $(x_2, y_2)$ en un cuadrado de lado $1 \times 1$. La distancia euclidiana promedio converge analíticamente a <code class="bg-indigo-900/80 px-1 py-0.5 rounded text-indigo-100 font-mono">(2 + √2 + 5 ln(1 + √2)) / 15 ≈ 0.521405</code>.
+                    <p>
+                        Elegimos dos puntos uniformemente al azar $(x_1, y_1)$ y $(x_2, y_2)$ en un cuadrado de lado $1 \times 1$. La distancia euclidiana promedio converge analíticamente a:
+                    </p>
+                    <div class="mt-1.5 text-center text-sm text-indigo-100">
+                        $$\frac{2 + \sqrt{2} + 5\ln\!\left(1 + \sqrt{2}\right)}{15} \approx 0.521405$$
+                    </div>
                 </div>
             </div>
 
@@ -428,41 +461,80 @@
 
         btnPlay.addEventListener('click', startSimulation);
 
-        // Service Worker Registration & Version Query
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/dospuntos/sw.js', { scope: '/dospuntos/' })
-                .then(reg => {
-                    console.log('ServiceWorker registered with scope:', reg.scope);
-                    
-                    const requestVersion = (worker) => {
-                        const channel = new MessageChannel();
-                        channel.port1.onmessage = (event) => {
-                            if (event.data && event.data.version) {
-                                const versionChip = document.getElementById('versionChip');
-                                if (versionChip) {
-                                    versionChip.innerHTML = `<i class="fa-solid fa-code-branch mr-1.5"></i> v${event.data.version}`;
-                                }
-                            }
-                        };
-                        worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
-                    };
+        // ============================================================
+        // Service Worker: registro robusto + chip dinámico de versión
+        // ============================================================
+        (function setupVersionChip() {
+            const chip = document.getElementById('versionChip');
 
-                    if (navigator.serviceWorker.controller) {
-                        requestVersion(navigator.serviceWorker.controller);
+            const renderVersion = (version) => {
+                if (!chip) return;
+                chip.classList.remove('animate-pulse');
+                if (version) {
+                    chip.innerHTML = '<i class="fa-solid fa-code-branch mr-1.5"></i> v' + version;
+                    chip.classList.add('version-loaded');
+                    chip.title = 'Versión de la aplicación: v' + version + ' (obtenida del Service Worker)';
+                } else {
+                    chip.innerHTML = '<i class="fa-solid fa-code-branch mr-1.5"></i> v N/D';
+                    chip.classList.add('opacity-60');
+                    chip.title = 'No se pudo obtener la versión (Service Worker no disponible)';
+                }
+            };
+
+            if (!('serviceWorker' in navigator)) {
+                renderVersion(null);
+                return;
+            }
+
+            // Pregunta la versión al SW mediante un MessageChannel (con timeout)
+            const askVersion = (worker) => new Promise((resolve) => {
+                if (!worker) return resolve(null);
+                const channel = new MessageChannel();
+                const timer = setTimeout(() => resolve(null), 3000);
+                channel.port1.onmessage = (event) => {
+                    clearTimeout(timer);
+                    resolve((event.data && event.data.version) ? event.data.version : null);
+                };
+                try {
+                    worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+                } catch (err) {
+                    clearTimeout(timer);
+                    resolve(null);
+                }
+            });
+
+            const pickWorker = (reg) =>
+                navigator.serviceWorker.controller || reg.active || reg.waiting || reg.installing || null;
+
+            window.addEventListener('load', async () => {
+                // Ubicaciones habituales del SW (junto al HTML). Se prueban en orden.
+                const SW_PATHS = ['./service_worker.js', './sw.js'];
+                let reg = null;
+                for (const path of SW_PATHS) {
+                    try {
+                        reg = await navigator.serviceWorker.register(path, { scope: './' });
+                        console.log('[App] Service Worker registrado:', path, '— scope:', reg.scope);
+                        break;
+                    } catch (err) {
+                        console.warn('[App] No se pudo registrar el SW en', path, err);
                     }
+                }
+                if (!reg) {
+                    renderVersion(null);
+                    return;
+                }
 
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        if (navigator.serviceWorker.controller) {
-                            requestVersion(navigator.serviceWorker.controller);
-                        }
-                    });
-                })
-                .catch(err => {
-                    console.log('ServiceWorker registration failed:', err);
+                // Consulta inmediata (en recargas la página ya está controlada;
+                // en la primera visita responde el worker recién instalado)
+                renderVersion(await askVersion(pickWorker(reg)));
+
+                // Cuando el SW tome el control (primera activación o actualización),
+                // volver a consultar por si la versión cambió
+                navigator.serviceWorker.addEventListener('controllerchange', async () => {
+                    renderVersion(await askVersion(pickWorker(reg)));
                 });
             });
-        }
+        })();
 
         // Initial render on load
         window.onload = function() {
